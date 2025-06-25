@@ -1,7 +1,7 @@
 #![allow(clippy::derive_partial_eq_without_eq)]
 
 use devicemgmt as tds;
-use onvif as tt;
+use onvif_xsd as tt;
 use std::str::FromStr;
 use validate::Validate;
 use xsd_macro_utils::*;

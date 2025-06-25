@@ -4,6 +4,10 @@ use schema::{self, transport};
 use structopt::StructOpt;
 use tracing::{debug, warn};
 use url::Url;
+use serde::Serialize;
+use serde_json;
+use schema::devicemgmt::SetSystemDateAndTime;
+use schema::onvif::{SetDateTimeType, DateTime, Date, Time, TimeZone};
 
 #[derive(StructOpt)]
 #[structopt(name = "camera", about = "ONVIF camera control tool")]
@@ -71,8 +75,39 @@ enum Cmd {
     /// Gets information about the currently enabled and supported video analytics.
     GetAnalytics,
 
+    /// Gets network interfaces information
+    GetNetworkInterfaces,
+
     // Try to get any possible information
     GetAll,
+
+    /// Gets the default gateway information
+    GetNetworkDefaultGateway,
+
+    /// Gets the network protocols
+    GetNetworkProtocols,
+
+    /// Set the system date and time
+    SetSystemDateAndTime {
+        #[structopt(long)]
+        date_time_type: String,
+        #[structopt(long)]
+        daylight_savings: bool,
+        #[structopt(long)]
+        time_zone: Option<String>,
+        #[structopt(long)]
+        year: Option<i32>,
+        #[structopt(long)]
+        month: Option<i32>,
+        #[structopt(long)]
+        day: Option<i32>,
+        #[structopt(long)]
+        hour: Option<i32>,
+        #[structopt(long)]
+        minute: Option<i32>,
+        #[structopt(long)]
+        second: Option<i32>,
+    },
 }
 
 struct Clients {
@@ -206,49 +241,63 @@ async fn get_device_information(clients: &Clients) -> Result<(), transport::Erro
 }
 
 async fn get_service_capabilities(clients: &Clients) {
-    match schema::event::get_service_capabilities(&clients.devicemgmt, &Default::default()).await {
+    // devicemgmt
+    match schema::devicemgmt::get_service_capabilities(&clients.devicemgmt, &Default::default()).await {
         Ok(capability) => println!("devicemgmt: {:#?}", capability),
         Err(error) => println!("Failed to fetch devicemgmt: {}", error),
     }
 
+    // event
     if let Some(ref event) = clients.event {
         match schema::event::get_service_capabilities(event, &Default::default()).await {
             Ok(capability) => println!("event: {:#?}", capability),
             Err(error) => println!("Failed to fetch event: {}", error),
         }
     }
+
+    // deviceio
     if let Some(ref deviceio) = clients.deviceio {
-        match schema::event::get_service_capabilities(deviceio, &Default::default()).await {
+        match schema::deviceio::get_service_capabilities(deviceio, &Default::default()).await {
             Ok(capability) => println!("deviceio: {:#?}", capability),
             Err(error) => println!("Failed to fetch deviceio: {}", error),
         }
     }
+
+    // media
     if let Some(ref media) = clients.media {
-        match schema::event::get_service_capabilities(media, &Default::default()).await {
+        match schema::media::get_service_capabilities(media, &Default::default()).await {
             Ok(capability) => println!("media: {:#?}", capability),
             Err(error) => println!("Failed to fetch media: {}", error),
         }
     }
+
+    // media2
     if let Some(ref media2) = clients.media2 {
-        match schema::event::get_service_capabilities(media2, &Default::default()).await {
+        match schema::media2::get_service_capabilities(media2, &Default::default()).await {
             Ok(capability) => println!("media2: {:#?}", capability),
             Err(error) => println!("Failed to fetch media2: {}", error),
         }
     }
+
+    // imaging
     if let Some(ref imaging) = clients.imaging {
-        match schema::event::get_service_capabilities(imaging, &Default::default()).await {
+        match schema::imaging::get_service_capabilities(imaging, &Default::default()).await {
             Ok(capability) => println!("imaging: {:#?}", capability),
             Err(error) => println!("Failed to fetch imaging: {}", error),
         }
     }
+
+    // ptz
     if let Some(ref ptz) = clients.ptz {
-        match schema::event::get_service_capabilities(ptz, &Default::default()).await {
+        match schema::ptz::get_service_capabilities(ptz, &Default::default()).await {
             Ok(capability) => println!("ptz: {:#?}", capability),
             Err(error) => println!("Failed to fetch ptz: {}", error),
         }
     }
+
+    // analytics
     if let Some(ref analytics) = clients.analytics {
-        match schema::event::get_service_capabilities(analytics, &Default::default()).await {
+        match schema::analytics::get_service_capabilities(analytics, &Default::default()).await {
             Ok(capability) => println!("analytics: {:#?}", capability),
             Err(error) => println!("Failed to fetch analytics: {}", error),
         }
@@ -343,13 +392,26 @@ async fn get_snapshot_uris(clients: &Clients) -> Result<(), transport::Error> {
 async fn get_hostname(clients: &Clients) -> Result<(), transport::Error> {
     let resp = schema::devicemgmt::get_hostname(&clients.devicemgmt, &Default::default()).await?;
     debug!("get_hostname response: {:#?}", &resp);
-    println!(
-        "{}",
-        resp.hostname_information
-            .name
-            .as_deref()
-            .unwrap_or("(unset)")
-    );
+    let hostname = resp.hostname_information.name.as_deref().unwrap_or("(unset)");
+    println!("Hostname: {}", hostname);
+    Ok(())
+}
+
+async fn get_network_interfaces(clients: &Clients) -> Result<(), transport::Error> {
+    let resp = schema::devicemgmt::get_network_interfaces(&clients.devicemgmt, &Default::default()).await?;
+    debug!("get_network_interfaces response: {:#?}", &resp);
+    
+    println!("Network Interfaces:");
+    for (i, interface) in resp.network_interfaces.iter().enumerate() {
+        println!("  Interface {}: token={}", i, interface.token.0);
+        if let Some(ref info) = interface.info {
+            if let Some(ref name) = info.name {
+                println!("    Name: {}", name);
+            }
+            println!("    MAC Address: {}", info.hw_address.0);
+        }
+        println!("    Enabled: {}", interface.enabled);
+    }
     Ok(())
 }
 
@@ -485,6 +547,47 @@ async fn get_status(clients: &Clients) -> Result<(), transport::Error> {
     Ok(())
 }
 
+#[derive(Debug, Serialize)]
+pub struct NetworkDefaultGatewayResult {
+    pub ipv4: Vec<String>,
+    pub ipv6: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct NetworkProtocolResult {
+    pub name: String,
+    pub enabled: bool,
+    pub ports: Vec<i32>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SetSystemDateAndTimeResult {
+    pub success: bool,
+}
+
+async fn get_network_default_gateway(clients: &Clients) -> Result<NetworkDefaultGatewayResult, transport::Error> {
+    let resp = schema::devicemgmt::get_network_default_gateway(&clients.devicemgmt, &Default::default()).await?;
+    let ipv4 = resp.network_gateway.i_pv_4_address.iter().map(|ip| ip.0.clone()).collect();
+    let ipv6 = resp.network_gateway.i_pv_6_address.iter().map(|ip| ip.0.clone()).collect();
+    Ok(NetworkDefaultGatewayResult { ipv4, ipv6 })
+}
+
+async fn get_network_protocols(clients: &Clients) -> Result<Vec<NetworkProtocolResult>, transport::Error> {
+    let resp = schema::devicemgmt::get_network_protocols(&clients.devicemgmt, &Default::default()).await?;
+    let protocols = resp.network_protocols.into_iter().map(|proto| NetworkProtocolResult {
+        name: format!("{:?}", proto.name),
+        enabled: proto.enabled,
+        ports: proto.port,
+    }).collect();
+    Ok(protocols)
+}
+
+
+async fn set_system_date_and_time(clients: &Clients, req: SetSystemDateAndTime) -> Result<SetSystemDateAndTimeResult, transport::Error> {
+    let resp = schema::devicemgmt::set_system_date_and_time(&clients.devicemgmt, &req).await;
+    Ok(SetSystemDateAndTimeResult { success: resp.is_ok() })
+}
+
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt::init();
@@ -504,6 +607,7 @@ async fn main() {
         Cmd::EnableAnalytics => enable_analytics(&clients).await.unwrap(),
         Cmd::GetAnalytics => get_analytics(&clients).await.unwrap(),
         Cmd::GetStatus => get_status(&clients).await.unwrap(),
+        Cmd::GetNetworkInterfaces => get_network_interfaces(&clients).await.unwrap(),
         Cmd::GetAll => {
             get_system_date_and_time(&clients).await;
             get_capabilities(&clients).await;
@@ -528,6 +632,47 @@ async fn main() {
             get_status(&clients).await.unwrap_or_else(|error| {
                 println!("Error while fetching status: {:#?}", error);
             });
+        }
+        Cmd::GetNetworkDefaultGateway => {
+            let res = get_network_default_gateway(&clients).await.unwrap();
+            println!("{}", serde_json::to_string_pretty(&res).unwrap());
+        }
+        Cmd::GetNetworkProtocols => {
+            let res = get_network_protocols(&clients).await.unwrap();
+            println!("{}", serde_json::to_string_pretty(&res).unwrap());
+        }
+        Cmd::SetSystemDateAndTime {
+            date_time_type,
+            daylight_savings,
+            time_zone,
+            year,
+            month,
+            day,
+            hour,
+            minute,
+            second,
+        } => {
+            let date_time_type = match date_time_type.to_lowercase().as_str() {
+                "manual" => SetDateTimeType::Manual,
+                "ntp" => SetDateTimeType::Ntp,
+                _ => SetDateTimeType::Manual,
+            };
+            let utc_date_time = if let (Some(year), Some(month), Some(day), Some(hour), Some(minute), Some(second)) = (year, month, day, hour, minute, second) {
+                Some(DateTime {
+                    date: Date { year, month, day },
+                    time: Time { hour, minute, second },
+                })
+            } else {
+                None
+            };
+            let req = SetSystemDateAndTime {
+                date_time_type,
+                daylight_savings,
+                time_zone: time_zone.map(|tz| TimeZone { tz }),
+                utc_date_time,
+            };
+            let res = set_system_date_and_time(&clients, req).await.unwrap();
+            println!("{}", serde_json::to_string_pretty(&res).unwrap());
         }
     }
 }

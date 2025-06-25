@@ -9,7 +9,7 @@ pub use transport;
 pub use common;
 #[cfg(feature = "metadatastream")]
 pub use metadatastream;
-pub use onvif;
+pub use onvif_xsd as onvif;
 #[cfg(feature = "radiometry")]
 pub use radiometry;
 #[cfg(feature = "rules")]

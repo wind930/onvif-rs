@@ -1,5 +1,6 @@
 extern crate onvif;
 use onvif::discovery;
+use std::net::IpAddr;
 
 #[tokio::main]
 async fn main() {
@@ -9,7 +10,11 @@ async fn main() {
     use futures_util::stream::StreamExt;
     const MAX_CONCURRENT_JUMPERS: usize = 100;
 
+    // 将字符串解析为 IpAddr
+    let listen_addr: IpAddr = "192.168.1.100".parse().unwrap();
+
     discovery::DiscoveryBuilder::default()
+        .listen_address(listen_addr)
         .run()
         .await
         .unwrap()

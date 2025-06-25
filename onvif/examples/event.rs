@@ -18,19 +18,19 @@ pub struct Camera {
 impl Default for Camera {
     fn default() -> Self {
         Camera {
-            device_service_url: "http://192.168.1.100/onvif/device_service".to_string(),
+            device_service_url: "http://192.168.1.10:8899/onvif/device_service".to_string(),
             username: "admin".to_string(),
-            password: "admin".to_string(),
-            event_service_url: "http://192.168.1.100/onvif/event_service".to_string(),
+            password: "".to_string(),
+            event_service_url: "http://192.168.1.10:8899/onvif/event_service".to_string(),
         }
     }
 }
 
 #[tokio::main]
 async fn main() {
-    let camera_ip = "192.168.1.50";
+    let camera_ip = "192.168.1.10:8899";
     let username = "admin";
-    let password = "admin";
+    let password = "";
 
     let camera: Camera = Camera {
         device_service_url: format!("http://{}/onvif/device_service", camera_ip),

@@ -20,7 +20,7 @@ xsd-types = { git = "https://github.com/lumeohq/xsd-parser-rs", rev = "7f3d433" 
 # xsd
 common = { path = "../xsd_rs/common" }
 metadatastream = { path = "../xsd_rs/metadatastream", optional = true }
-onvif = { package = "onvif-xsd", path = "../xsd_rs/onvif_xsd" }
+onvif_xsd = { package = "onvif-xsd", path = "../xsd_rs/onvif_xsd" }
 radiometry = { path = "../xsd_rs/radiometry", optional = true }
 rules = { path = "../xsd_rs/rules", optional = true }
 soap_envelope = { path = "../xsd_rs/soap_envelope" }

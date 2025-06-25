@@ -1,6 +1,6 @@
 #![allow(clippy::derive_partial_eq_without_eq)]
 
-use onvif as tt;
+use onvif_xsd as tt;
 use validate::Validate;
 use xsd_types::types as xs;
 use yaserde_derive::{YaDeserialize, YaSerialize};
